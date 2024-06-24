@@ -1,0 +1,88 @@
+const { ipcRenderer } = require('electron');
+
+document.getElementById('login-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+
+  ipcRenderer.send('login', { username, password });
+});
+
+ipcRenderer.on('login-success', (event, userData) => {
+  console.log('Login successful!', userData);
+  // Redirect to game or show user dashboard
+});
+const { app, BrowserWindow, ipcMain } = require('electron');
+const path = require('path');
+const { authenticateUser } = require('./database/db');
+
+ipcMain.on('login', (event, { username, password }) => {
+  const user = authenticateUser(username, password);
+  if (user) {
+    event.reply('login-success', user);
+  } else {
+    event.reply('login-failed', 'Invalid username or password');
+  }
+});
+
+function createWindow() {
+  const mainWindow = new BrowserWindow({
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js')
+    }
+  });
+  mainWindow.loadFile('src/renderer/index.html');
+}
+
+app.on('ready', createWindow);
+const Datastore = require('nedb');
+const db = new Datastore({ filename: 'user.db', autoload: true });
+
+function authenticateUser(username, password) {
+  db.findOne({ username, password }, (err, user) => {
+    if (err || !user) return null;
+    return user;
+  });
+}
+
+module.exports = { authenticateUser };
+const Phaser = require('phaser');
+const BootScene = require('./scenes/BootScene');
+const MenuScene = require('./scenes/MenuScene');
+const GameScene = require('./scenes/GameScene');
+const ScoreScene = require('./scenes/ScoreScene');
+
+const config = {
+  type: Phaser.AUTO,
+  width: 800,
+  height: 600,
+  scene: [BootScene, MenuScene, GameScene, ScoreScene],
+  physics: {
+    default: 'arcade',
+    arcade: {
+      gravity: { y: 0 },
+      debug: false
+    }
+  }
+};
+
+const game = new Phaser.Game(config);
+class ScoreScene extends Phaser.Scene {
+  constructor() {
+    super({ key: 'ScoreScene' });
+  }
+
+  create() {
+    const scores = this.getHighScores();
+    scores.forEach((score, index) => {
+      this.add.text(100, 100 + index * 20, `${score.username}: ${score.points}`, { fontSize: '16px', fill: '#fff' });
+    });
+  }
+
+  getHighScores() {
+    // Fetch high scores from local storage or database
+    return [];
+  }
+}
+
+module.exports = ScoreScene;
